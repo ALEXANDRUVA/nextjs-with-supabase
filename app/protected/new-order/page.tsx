@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import { createClient } from "@/lib/supabase/server";
 
-export default async function NewOrderPage() {
+async function NewOrderContent() {
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.getClaims();
@@ -49,5 +50,25 @@ export default async function NewOrderPage() {
         </div>
       </div>
     </section>
+  );
+}
+
+function NewOrderLoading() {
+  return (
+    <section className="w-full max-w-3xl py-8">
+      <div className="rounded-2xl border border-foreground/10 p-8">
+        <p className="text-sm text-foreground/60">
+          VimmoAI wird geladen...
+        </p>
+      </div>
+    </section>
+  );
+}
+
+export default function NewOrderPage() {
+  return (
+    <Suspense fallback={<NewOrderLoading />}>
+      <NewOrderContent />
+    </Suspense>
   );
 }
