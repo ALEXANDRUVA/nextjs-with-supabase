@@ -343,10 +343,8 @@ async function DashboardContent() {
     Videoerstellung wird in einer späteren Phase aktiviert.
   </p>
 </div>
-                  </p>
-                </div>
-              </div>
-            </article>
+</div>
+</article>
           ))}
         </div>
       )}
