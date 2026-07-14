@@ -3,18 +3,21 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { createClient } from "@/lib/supabase/server";
+import { OrderForm } from "./order-form";
 
 async function NewOrderContent() {
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.getClaims();
 
-  if (error || !data?.claims) {
+  if (error || !data?.claims?.sub) {
     redirect("/auth/login");
   }
 
+  const userId = String(data.claims.sub);
+
   return (
-    <section className="w-full max-w-3xl py-8">
+    <section className="w-full max-w-4xl py-8">
       <Link
         href="/protected"
         className="mb-8 inline-flex text-sm text-foreground/60 transition hover:text-foreground"
@@ -22,10 +25,10 @@ async function NewOrderContent() {
         ← Zurück zum Dashboard
       </Link>
 
-      <div className="rounded-2xl border border-foreground/10 bg-background p-6 shadow-sm md:p-10">
-        <div className="mb-8">
+      <div className="rounded-3xl border border-foreground/10 bg-background p-6 shadow-sm md:p-10">
+        <header className="mb-10">
           <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-foreground/50">
-            VimmoAI
+            VimmoAI Studio
           </p>
 
           <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
@@ -33,21 +36,14 @@ async function NewOrderContent() {
           </h1>
 
           <p className="mt-4 max-w-2xl text-foreground/60">
-            Erstellen Sie eine neue Anfrage für eine KI-gestützte
-            Immobilienvisualisierung. Im nächsten Schritt können Sie Ihr
-            Objektfoto hochladen und den gewünschten Videostil auswählen.
+            Laden Sie Ihr Objektfoto hoch und wählen Sie
+            den gewünschten Stil. Ihre Anfrage und das
+            Originalbild werden sicher Ihrem Benutzerkonto
+            zugeordnet.
           </p>
-        </div>
+        </header>
 
-        <div className="rounded-xl border border-dashed border-foreground/20 p-8 text-center">
-          <p className="font-medium">
-            Die sichere VimmoAI-Bestellseite funktioniert.
-          </p>
-
-          <p className="mt-2 text-sm text-foreground/60">
-            Das vollständige Formular wird als nächster Schritt eingefügt.
-          </p>
-        </div>
+        <OrderForm userId={userId} />
       </div>
     </section>
   );
@@ -55,8 +51,8 @@ async function NewOrderContent() {
 
 function NewOrderLoading() {
   return (
-    <section className="w-full max-w-3xl py-8">
-      <div className="rounded-2xl border border-foreground/10 p-8">
+    <section className="w-full max-w-4xl py-8">
+      <div className="rounded-3xl border border-foreground/10 p-8">
         <p className="text-sm text-foreground/60">
           VimmoAI wird geladen...
         </p>
