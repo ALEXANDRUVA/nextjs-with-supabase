@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { createClient } from "@/lib/supabase/server";
+import { AnalyzeProjectButton } from "./analyze-project-button";
 
 type OrderRow = {
   id: string;
@@ -331,10 +332,17 @@ async function DashboardContent() {
                   />
                 </div>
 
-                <div className="mt-6 border-t border-white/10 pt-5">
-                  <p className="text-xs leading-5 text-white/40">
-                    Ihre Anfrage wurde sicher gespeichert. Die automatische
-                    Videoerstellung wird in einer späteren Phase aktiviert.
+                <AnalyzeProjectButton
+  orderId={project.id}
+  status={project.status}
+/>
+
+<div className="mt-6 border-t border-white/10 pt-5">
+  <p className="text-xs leading-5 text-white/40">
+    Ihre Anfrage wurde sicher gespeichert. Die automatische
+    Videoerstellung wird in einer späteren Phase aktiviert.
+  </p>
+</div>
                   </p>
                 </div>
               </div>
