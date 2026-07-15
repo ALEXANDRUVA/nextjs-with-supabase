@@ -5,37 +5,11 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { createClient } from "@/lib/supabase/server";
-import { CopyTextButton } from "./copy-text-button";
 
 type ProjectDetailsPageProps = {
   params: Promise<{
     orderId: string;
   }>;
-};
-
-type AiAnalysis = {
-  room_summary?: string;
-  visible_architecture?: string[];
-  architecture_to_preserve?: string[];
-  visible_materials?: string[];
-  lighting_conditions?: string;
-  perspective_observations?: string;
-  deformation_risks?: string[];
-  unsuitable_transformations?: string[];
-  confidence_score?: number;
-  human_review_required?: boolean;
-  human_review_notes?: string;
-  openai_request_id?: string | null;
-};
-
-type RecommendedSettings = {
-  duration_seconds?: number;
-  camera_motion?: string;
-  motion_strength?: string;
-  image_detail?: string;
-  creativity?: string;
-  aspect_ratio_recommendation?: string;
-  generation_notes?: string;
 };
 
 type OrderRow = {
@@ -51,30 +25,22 @@ type OrderRow = {
   notes: string | null;
   original_image_path: string | null;
   approved_video_path: string | null;
-  ai_analysis: AiAnalysis | null;
-  kling_prompt: string | null;
-  negative_prompt: string | null;
-  recommended_settings: RecommendedSettings | null;
-  prompt_model: string | null;
-  prompt_created_at: string | null;
-  prompt_error: string | null;
   created_at: string;
-  updated_at: string;
 };
 
 const statusLabels: Record<string, string> = {
   draft: "Entwurf",
-  image_uploaded: "Bild hochgeladen",
+  image_uploaded: "Anfrage eingegangen",
   payment_pending: "Zahlung ausstehend",
-  paid: "Bezahlt",
-  prompt_processing: "KI-Analyse läuft",
-  prompt_ready: "Prompt vorbereitet",
-  video_queued: "In Warteschlange",
+  paid: "Zahlung bestätigt",
+  prompt_processing: "Projekt wird vorbereitet",
+  prompt_ready: "Vorbereitung abgeschlossen",
+  video_queued: "Produktion eingeplant",
   video_processing: "Video wird erstellt",
   quality_review: "Qualitätsprüfung",
-  approved: "Freigegeben",
-  delivered: "Ausgeliefert",
-  failed: "Fehlgeschlagen",
+  approved: "Video freigegeben",
+  delivered: "Fertiggestellt",
+  failed: "Interne Prüfung erforderlich",
   refunded: "Erstattet",
 };
 
@@ -103,6 +69,30 @@ const styleLabels: Record<string, string> = {
   architecture_preserved: "Originalarchitektur",
 };
 
+const cameraMotionLabels: Record<string, string> = {
+  slow_forward: "Ruhige Vorwärtsbewegung",
+  dolly_in: "Sanfte Annäherung",
+  pan_left: "Langsame Bewegung nach links",
+  pan_right: "Langsame Bewegung nach rechts",
+  orbit: "Leichte Rundbewegung",
+  static: "Ruhige Perspektive",
+};
+
+const usageTypeLabels: Record<string, string> = {
+  social_media: "Social Media",
+  immobilienportal: "Immobilienportal",
+  website: "Website",
+  praesentationen: "Präsentation",
+  werbung: "Werbung",
+};
+
+const progressSteps = [
+  "Anfrage",
+  "Vorbereitung",
+  "Qualitätsprüfung",
+  "Fertig",
+];
+
 function formatDate(value: string | null) {
   if (!value) {
     return "—";
@@ -114,21 +104,66 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
+function getStatusText(status: string) {
+  switch (status) {
+    case "draft":
+      return "Das Projekt wurde als Entwurf gespeichert.";
+
+    case "image_uploaded":
+      return "Ihre Anfrage und das Objektfoto wurden erfolgreich gespeichert.";
+
+    case "payment_pending":
+      return "Die Anfrage wurde gespeichert. Die Zahlung ist noch ausstehend.";
+
+    case "paid":
+      return "Die Zahlung wurde bestätigt. Ihr Projekt wird als Nächstes vorbereitet.";
+
+    case "prompt_processing":
+      return "Ihr Projekt wird derzeit für die Videoproduktion vorbereitet.";
+
+    case "prompt_ready":
+      return "Die Vorbereitung ist abgeschlossen. Ihr Projekt wird für die Produktion eingeplant.";
+
+    case "video_queued":
+      return "Ihr Projekt wurde für die Videoproduktion eingeplant.";
+
+    case "video_processing":
+      return "Ihr Immobilienvideo wird derzeit erstellt.";
+
+    case "quality_review":
+      return "Das Ergebnis wird momentan persönlich auf Qualität geprüft.";
+
+    case "approved":
+      return "Das Video wurde geprüft und für die Bereitstellung freigegeben.";
+
+    case "delivered":
+      return "Ihr fertiges Immobilienvideo steht zur Verfügung.";
+
+    case "failed":
+      return "Das Projekt benötigt eine interne Prüfung. Sie müssen derzeit nichts unternehmen.";
+
+    case "refunded":
+      return "Die Zahlung für dieses Projekt wurde erstattet.";
+
+    default:
+      return "Ihr Projekt wurde erfolgreich gespeichert.";
+  }
+}
+
 function getStatusClasses(status: string) {
   if (status === "failed") {
     return "border-red-400/25 bg-red-400/10 text-red-200";
   }
 
-  if (
-    status === "approved" ||
-    status === "delivered" ||
-    status === "prompt_ready"
-  ) {
+  if (status === "refunded") {
+    return "border-white/15 bg-white/[0.06] text-white/60";
+  }
+
+  if (status === "approved" || status === "delivered") {
     return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200";
   }
 
   if (
-    status === "prompt_processing" ||
     status === "video_processing" ||
     status === "quality_review"
   ) {
@@ -136,6 +171,32 @@ function getStatusClasses(status: string) {
   }
 
   return "border-[#d6b25e]/25 bg-[#d6b25e]/10 text-[#ead28f]";
+}
+
+function getProgressIndex(status: string) {
+  switch (status) {
+    case "draft":
+    case "image_uploaded":
+    case "payment_pending":
+      return 0;
+
+    case "paid":
+    case "prompt_processing":
+    case "prompt_ready":
+    case "video_queued":
+    case "video_processing":
+      return 1;
+
+    case "quality_review":
+    case "approved":
+      return 2;
+
+    case "delivered":
+      return 3;
+
+    default:
+      return 0;
+  }
 }
 
 async function ProjectDetailsContent({
@@ -169,15 +230,7 @@ async function ProjectDetailsContent({
         notes,
         original_image_path,
         approved_video_path,
-        ai_analysis,
-        kling_prompt,
-        negative_prompt,
-        recommended_settings,
-        prompt_model,
-        prompt_created_at,
-        prompt_error,
-        created_at,
-        updated_at
+        created_at
       `,
     )
     .eq("id", orderId)
@@ -185,7 +238,7 @@ async function ProjectDetailsContent({
     .maybeSingle();
 
   if (orderError) {
-    console.error("Could not load VimmoAI project:", orderError);
+    console.error("Could not load project:", orderError);
   }
 
   if (!orderData) {
@@ -196,14 +249,14 @@ async function ProjectDetailsContent({
             Projekt nicht gefunden
           </h1>
 
-          <p className="mt-3 text-sm leading-6 text-white/55">
-            Das Projekt existiert nicht oder Sie haben keine Berechtigung,
-            es anzuzeigen.
+          <p className="mt-3 max-w-xl text-sm leading-6 text-white/55">
+            Das Projekt existiert nicht oder Sie haben keine
+            Berechtigung, es anzuzeigen.
           </p>
 
           <Link
             href="/protected"
-            className="mt-6 inline-flex rounded-xl bg-white px-5 py-3 font-semibold text-black transition hover:bg-[#ead28f]"
+            className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-white px-5 py-3 font-semibold text-black transition hover:bg-[#ead28f]"
           >
             Zurück zu meinen Projekten
           </Link>
@@ -213,8 +266,6 @@ async function ProjectDetailsContent({
   }
 
   const order = orderData as OrderRow;
-  const analysis = order.ai_analysis;
-  const settings = order.recommended_settings;
 
   let imageUrl: string | null = null;
   let videoUrl: string | null = null;
@@ -243,14 +294,18 @@ async function ProjectDetailsContent({
     videoUrl = data?.signedUrl ?? null;
   }
 
-  const projectTitle = `${
-    propertyLabels[order.property_type ?? ""] ?? "Immobilienprojekt"
-  } · ${roomLabels[order.room_type ?? ""] ?? "Objektbereich"}`;
+  const propertyLabel =
+    propertyLabels[order.property_type ?? ""] ??
+    order.property_type ??
+    "Immobilienprojekt";
 
-  const confidenceScore =
-    typeof analysis?.confidence_score === "number"
-      ? Math.max(0, Math.min(100, analysis.confidence_score))
-      : null;
+  const roomLabel =
+    roomLabels[order.room_type ?? ""] ??
+    order.room_type ??
+    "Objektbereich";
+
+  const projectTitle = `${propertyLabel} · ${roomLabel}`;
+  const progressIndex = getProgressIndex(order.status);
 
   return (
     <section className="w-full py-4">
@@ -262,13 +317,13 @@ async function ProjectDetailsContent({
         Zurück zu meinen Projekten
       </Link>
 
-      <header className="mb-8 flex flex-col justify-between gap-6 md:flex-row md:items-end">
+      <header className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-end">
         <div>
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#d6b25e]/20 bg-[#d6b25e]/10 px-4 py-2">
             <span className="h-1.5 w-1.5 rounded-full bg-[#e2c474] shadow-[0_0_12px_rgba(226,196,116,0.8)]" />
 
-            <span className="text-xs font-semibold uppercase tracking-[0.22em] text-[#e2c474]">
-              Projekt-Details
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[#e2c474]">
+              Projektübersicht
             </span>
           </div>
 
@@ -276,8 +331,8 @@ async function ProjectDetailsContent({
             {projectTitle}
           </h1>
 
-          <p className="mt-4 text-sm text-white/45">
-            Projekt-ID: {order.id}
+          <p className="mt-3 text-sm text-white/40">
+            Projekt {order.id.slice(0, 8).toUpperCase()}
           </p>
         </div>
 
@@ -290,327 +345,193 @@ async function ProjectDetailsContent({
         </span>
       </header>
 
-      <div className="grid gap-7 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="space-y-7">
-          <article className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-[#d6b25e]/60 to-transparent" />
-
-            <div className="aspect-[16/10] overflow-hidden bg-black/40">
-              {imageUrl ? (
-                <img
-                  src={imageUrl}
-                  alt="Originalfoto des Immobilienprojekts"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-sm text-white/40">
-                  Kein Originalfoto verfügbar
-                </div>
-              )}
-            </div>
-
-            <div className="p-6 md:p-8">
-              <h2 className="text-xl font-semibold text-white">
-                Projektinformationen
-              </h2>
-
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                <InfoCard
-                  label="Immobilientyp"
-                  value={
-                    propertyLabels[order.property_type ?? ""] ??
-                    order.property_type ??
-                    "—"
-                  }
-                />
-
-                <InfoCard
-                  label="Raum oder Bereich"
-                  value={
-                    roomLabels[order.room_type ?? ""] ??
-                    order.room_type ??
-                    "—"
-                  }
-                />
-
-                <InfoCard
-                  label="Gewünschter Stil"
-                  value={
-                    styleLabels[order.style ?? ""] ??
-                    order.style ??
-                    "—"
-                  }
-                />
-
-                <InfoCard
-                  label="Gewünschte Videolänge"
-                  value={
-                    order.duration_seconds
-                      ? `${order.duration_seconds} Sekunden`
-                      : "—"
-                  }
-                />
-
-                <InfoCard
-                  label="Kamerabewegung"
-                  value={order.camera_motion ?? "—"}
-                />
-
-                <InfoCard
-                  label="Verwendungszweck"
-                  value={order.usage_type ?? "—"}
-                />
-
-                <InfoCard
-                  label="Anfrage erstellt"
-                  value={formatDate(order.created_at)}
-                />
-
-                <InfoCard
-                  label="Prompt erstellt"
-                  value={formatDate(order.prompt_created_at)}
-                />
-              </div>
-
-              {order.notes ? (
-                <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-xs text-white/35">
-                    Zusätzliche Wünsche
-                  </p>
-
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/75">
-                    {order.notes}
-                  </p>
-                </div>
-              ) : null}
-            </div>
-          </article>
-
-          {videoUrl ? (
-            <article className="overflow-hidden rounded-[28px] border border-emerald-400/20 bg-white/[0.045] p-6 backdrop-blur-2xl">
-              <h2 className="mb-5 text-xl font-semibold text-white">
-                Freigegebenes Video
-              </h2>
-
-              <video
-                src={videoUrl}
-                controls
-                className="w-full rounded-2xl bg-black"
+      <div className="grid gap-7 xl:grid-cols-[1.08fr_0.92fr]">
+        <article className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+          <div className="aspect-[16/10] overflow-hidden bg-black/40">
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt="Hochgeladenes Objektfoto"
+                className="h-full w-full object-cover"
               />
-            </article>
-          ) : null}
-        </div>
-
-        <div className="space-y-7">
-          <article className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-6 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:p-8">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#d6b25e]/60 to-transparent" />
-
-            <h2 className="text-2xl font-semibold text-white">
-              KI-Bildanalyse
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-white/45">
-              Visuelle Analyse des hochgeladenen Objektfotos.
-            </p>
-
-            {analysis ? (
-              <>
-                <div className="mt-6 rounded-2xl border border-[#d6b25e]/20 bg-[#d6b25e]/[0.07] p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#e2c474]">
-                    Zusammenfassung
-                  </p>
-
-                  <p className="mt-3 leading-7 text-white/75">
-                    {analysis.room_summary ?? "Keine Zusammenfassung verfügbar."}
-                  </p>
-                </div>
-
-                {confidenceScore !== null ? (
-                  <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-5">
-                    <div className="flex items-center justify-between gap-4">
-                      <p className="text-sm text-white/50">
-                        Analyse-Konfidenz
-                      </p>
-
-                      <p className="text-xl font-bold text-[#ead28f]">
-                        {confidenceScore}%
-                      </p>
-                    </div>
-
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-[#a9873e] to-[#e2c474]"
-                        style={{
-                          width: `${confidenceScore}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                ) : null}
-
-                <AnalysisList
-                  title="Sichtbare Architektur"
-                  items={analysis.visible_architecture}
-                />
-
-                <AnalysisList
-                  title="Unbedingt zu erhalten"
-                  items={analysis.architecture_to_preserve}
-                  highlighted
-                />
-
-                <AnalysisList
-                  title="Sichtbare Materialien"
-                  items={analysis.visible_materials}
-                />
-
-                <AnalysisText
-                  title="Lichtverhältnisse"
-                  value={analysis.lighting_conditions}
-                />
-
-                <AnalysisText
-                  title="Perspektive"
-                  value={analysis.perspective_observations}
-                />
-
-                <AnalysisList
-                  title="Risiken möglicher Verformungen"
-                  items={analysis.deformation_risks}
-                  warning
-                />
-
-                <AnalysisList
-                  title="Nicht geeignete Veränderungen"
-                  items={analysis.unsuitable_transformations}
-                  warning
-                />
-
-                <div
-                  className={`mt-5 rounded-2xl border p-5 ${
-                    analysis.human_review_required
-                      ? "border-amber-400/25 bg-amber-400/10"
-                      : "border-emerald-400/20 bg-emerald-400/10"
-                  }`}
-                >
-                  <p
-                    className={`font-semibold ${
-                      analysis.human_review_required
-                        ? "text-amber-200"
-                        : "text-emerald-200"
-                    }`}
-                  >
-                    {analysis.human_review_required
-                      ? "Menschliche Prüfung empfohlen"
-                      : "Standardprüfung ausreichend"}
-                  </p>
-
-                  <p className="mt-2 text-sm leading-6 text-white/55">
-                    {analysis.human_review_notes ||
-                      "Keine zusätzlichen Prüfungshinweise."}
-                  </p>
-                </div>
-              </>
             ) : (
-              <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm text-white/50">
-                Für dieses Projekt ist noch keine KI-Analyse vorhanden.
+              <div className="flex h-full items-center justify-center text-sm text-white/40">
+                Kein Objektfoto verfügbar
               </div>
             )}
-          </article>
-        </div>
-      </div>
-
-      <div className="mt-7 grid gap-7 xl:grid-cols-2">
-        <PromptCard
-          eyebrow="Kling AI"
-          title="Professioneller Video-Prompt"
-          text={order.kling_prompt}
-          buttonLabel="Prompt kopieren"
-        />
-
-        <PromptCard
-          eyebrow="Negative Prompt"
-          title="Schutz vor KI-Artefakten"
-          text={order.negative_prompt}
-          buttonLabel="Negativ-Prompt kopieren"
-        />
-      </div>
-
-      <article className="mt-7 rounded-[28px] border border-white/10 bg-white/[0.045] p-6 shadow-[0_25px_80px_rgba(0,0,0,0.4)] backdrop-blur-2xl md:p-8">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#e2c474]">
-              Empfohlene Einstellungen
-            </p>
-
-            <h2 className="mt-2 text-2xl font-semibold text-white">
-              Kling-AI-Konfiguration
-            </h2>
           </div>
 
-          {order.prompt_model ? (
-            <span className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 font-mono text-xs text-white/45">
-              {order.prompt_model}
-            </span>
-          ) : null}
-        </div>
+          <div className="p-6 md:p-8">
+            <h2 className="text-xl font-semibold text-white">
+              Ihre Anfrage
+            </h2>
 
-        {settings ? (
-          <>
-            <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <InfoCard
-                label="Empfohlene Dauer"
+                label="Immobilientyp"
+                value={propertyLabel}
+              />
+
+              <InfoCard
+                label="Raum oder Bereich"
+                value={roomLabel}
+              />
+
+              <InfoCard
+                label="Gewünschter Stil"
                 value={
-                  settings.duration_seconds
-                    ? `${settings.duration_seconds} Sekunden`
+                  styleLabels[order.style ?? ""] ??
+                  order.style ??
+                  "—"
+                }
+              />
+
+              <InfoCard
+                label="Videolänge"
+                value={
+                  order.duration_seconds
+                    ? `${order.duration_seconds} Sekunden`
                     : "—"
                 }
               />
 
               <InfoCard
-                label="Kamerabewegung"
-                value={settings.camera_motion ?? "—"}
+                label="Kameraführung"
+                value={
+                  cameraMotionLabels[order.camera_motion ?? ""] ??
+                  order.camera_motion ??
+                  "—"
+                }
               />
 
               <InfoCard
-                label="Bewegungsstärke"
-                value={settings.motion_strength ?? "—"}
-              />
-
-              <InfoCard
-                label="Bilddetail"
-                value={settings.image_detail ?? "—"}
-              />
-
-              <InfoCard
-                label="Kreativität"
-                value={settings.creativity ?? "—"}
-              />
-
-              <InfoCard
-                label="Seitenverhältnis"
-                value={settings.aspect_ratio_recommendation ?? "—"}
+                label="Verwendungszweck"
+                value={
+                  usageTypeLabels[order.usage_type ?? ""] ??
+                  order.usage_type ??
+                  "—"
+                }
               />
             </div>
 
-            {settings.generation_notes ? (
-              <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-5">
+            {order.notes ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
                 <p className="text-xs text-white/35">
-                  Hinweise zur Generierung
+                  Zusätzliche Wünsche
                 </p>
 
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/70">
-                  {settings.generation_notes}
+                  {order.notes}
                 </p>
               </div>
             ) : null}
-          </>
-        ) : (
-          <p className="mt-6 text-sm text-white/45">
-            Noch keine empfohlenen Einstellungen vorhanden.
-          </p>
-        )}
-      </article>
+
+            <p className="mt-5 text-xs text-white/30">
+              Anfrage erstellt am {formatDate(order.created_at)}
+            </p>
+          </div>
+        </article>
+
+        <div className="space-y-7">
+          <article className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-6 shadow-[0_25px_80px_rgba(0,0,0,0.4)] backdrop-blur-2xl md:p-8">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#d6b25e]/60 to-transparent" />
+
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#e2c474]">
+              Aktueller Stand
+            </p>
+
+            <h2 className="mt-3 text-2xl font-semibold text-white">
+              {statusLabels[order.status] ?? order.status}
+            </h2>
+
+            <p className="mt-4 leading-7 text-white/55">
+              {getStatusText(order.status)}
+            </p>
+
+            <div className="mt-6 rounded-2xl border border-[#d6b25e]/20 bg-[#d6b25e]/[0.07] p-5">
+              <p className="font-semibold text-[#ead28f]">
+                Persönliche Qualitätskontrolle
+              </p>
+
+              <p className="mt-2 text-sm leading-6 text-white/50">
+                Das Ergebnis wird vor der Bereitstellung persönlich
+                geprüft. Erst danach wird das fertige Video freigegeben.
+              </p>
+            </div>
+          </article>
+
+          <article className="rounded-[28px] border border-white/10 bg-white/[0.045] p-6 backdrop-blur-2xl md:p-8">
+            <h2 className="text-xl font-semibold text-white">
+              Projektfortschritt
+            </h2>
+
+            <div className="mt-6 space-y-5">
+              {progressSteps.map((step, index) => {
+                const isCompleted = index < progressIndex;
+                const isCurrent = index === progressIndex;
+
+                return (
+                  <div
+                    key={step}
+                    className="flex items-center gap-4"
+                  >
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${
+                        isCompleted
+                          ? "border-emerald-400/30 bg-emerald-400/15 text-emerald-200"
+                          : isCurrent
+                            ? "border-[#d6b25e]/45 bg-[#d6b25e]/15 text-[#ead28f]"
+                            : "border-white/10 bg-white/[0.04] text-white/25"
+                      }`}
+                    >
+                      {isCompleted ? "✓" : index + 1}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`font-medium ${
+                          isCompleted || isCurrent
+                            ? "text-white/80"
+                            : "text-white/30"
+                        }`}
+                      >
+                        {step}
+                      </p>
+                    </div>
+
+                    {isCurrent ? (
+                      <span className="rounded-full border border-[#d6b25e]/20 bg-[#d6b25e]/10 px-3 py-1 text-xs font-semibold text-[#ead28f]">
+                        Aktuell
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+        </div>
+      </div>
+
+      {videoUrl ? (
+        <article className="mt-7 overflow-hidden rounded-[28px] border border-emerald-400/20 bg-white/[0.045] p-6 shadow-[0_25px_80px_rgba(0,0,0,0.4)] backdrop-blur-2xl md:p-8">
+          <div className="mb-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">
+              Fertiges Projekt
+            </p>
+
+            <h2 className="mt-2 text-2xl font-semibold text-white">
+              Ihr Immobilienvideo
+            </h2>
+          </div>
+
+          <video
+            src={videoUrl}
+            controls
+            preload="metadata"
+            className="w-full rounded-2xl bg-black"
+          />
+        </article>
+      ) : null}
 
       <div className="mt-8 flex justify-center">
         <Link
@@ -619,19 +540,6 @@ async function ProjectDetailsContent({
         >
           Zurück zum Dashboard
         </Link>
-      </div>
-    </section>
-  );
-}
-
-function ProjectDetailsLoading() {
-  return (
-    <section className="w-full py-8">
-      <div className="h-10 w-52 animate-pulse rounded-xl bg-white/10" />
-
-      <div className="mt-8 grid gap-7 xl:grid-cols-2">
-        <div className="h-[650px] animate-pulse rounded-[28px] border border-white/10 bg-white/[0.04]" />
-        <div className="h-[650px] animate-pulse rounded-[28px] border border-white/10 bg-white/[0.04]" />
       </div>
     </section>
   );
@@ -647,6 +555,7 @@ function InfoCard({
   return (
     <div className="rounded-xl border border-white/10 bg-black/20 p-4">
       <p className="text-xs text-white/35">{label}</p>
+
       <p className="mt-1.5 break-words font-medium text-white/80">
         {value}
       </p>
@@ -654,118 +563,17 @@ function InfoCard({
   );
 }
 
-function AnalysisList({
-  title,
-  items,
-  warning = false,
-  highlighted = false,
-}: {
-  title: string;
-  items?: string[];
-  warning?: boolean;
-  highlighted?: boolean;
-}) {
-  const validItems = (items ?? []).filter(Boolean);
-
-  if (validItems.length === 0) {
-    return null;
-  }
-
+function ProjectDetailsLoading() {
   return (
-    <div
-      className={`mt-5 rounded-2xl border p-5 ${
-        warning
-          ? "border-amber-400/20 bg-amber-400/[0.06]"
-          : highlighted
-            ? "border-[#d6b25e]/20 bg-[#d6b25e]/[0.06]"
-            : "border-white/10 bg-black/20"
-      }`}
-    >
-      <h3 className="font-semibold text-white/85">{title}</h3>
+    <section className="w-full py-8">
+      <div className="h-10 w-64 animate-pulse rounded-xl bg-white/10" />
 
-      <ul className="mt-3 space-y-2">
-        {validItems.map((item, index) => (
-          <li
-            key={`${title}-${index}`}
-            className="flex gap-3 text-sm leading-6 text-white/60"
-          >
-            <span
-              className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${
-                warning ? "bg-amber-300" : "bg-[#d6b25e]"
-              }`}
-            />
+      <div className="mt-8 grid gap-7 xl:grid-cols-2">
+        <div className="h-[620px] animate-pulse rounded-[28px] border border-white/10 bg-white/[0.04]" />
 
-            <span>{item}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function AnalysisText({
-  title,
-  value,
-}: {
-  title: string;
-  value?: string;
-}) {
-  if (!value) {
-    return null;
-  }
-
-  return (
-    <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-5">
-      <h3 className="font-semibold text-white/85">{title}</h3>
-
-      <p className="mt-3 text-sm leading-6 text-white/60">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function PromptCard({
-  eyebrow,
-  title,
-  text,
-  buttonLabel,
-}: {
-  eyebrow: string;
-  title: string;
-  text: string | null;
-  buttonLabel: string;
-}) {
-  return (
-    <article className="relative overflow-hidden rounded-[28px] border border-[#d6b25e]/20 bg-white/[0.045] p-6 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:p-8">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#d6b25e]/70 to-transparent" />
-
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#e2c474]">
-        {eyebrow}
-      </p>
-
-      <h2 className="mt-2 text-2xl font-semibold text-white">
-        {title}
-      </h2>
-
-      {text ? (
-        <>
-          <div className="mt-5 max-h-[480px] overflow-auto rounded-2xl border border-white/10 bg-black/35 p-5">
-            <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-7 text-white/70">
-              {text}
-            </pre>
-          </div>
-
-          <div className="mt-5">
-            <CopyTextButton text={text} label={buttonLabel} />
-          </div>
-        </>
-      ) : (
-        <p className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm text-white/45">
-          Noch kein Text für dieses Projekt vorhanden.
-        </p>
-      )}
-    </article>
+        <div className="h-[620px] animate-pulse rounded-[28px] border border-white/10 bg-white/[0.04]" />
+      </div>
+    </section>
   );
 }
 
