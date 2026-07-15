@@ -336,7 +336,24 @@ async function DashboardContent() {
   orderId={project.id}
   status={project.status}
 />
-
+                
+{[
+  "prompt_ready",
+  "video_queued",
+  "video_processing",
+  "quality_review",
+  "approved",
+  "delivered",
+].includes(project.status) ? (
+  <Link
+    href={`/protected/projects/${project.id}`}
+    className="mt-4 flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl border border-[#d6b25e]/35 bg-[#d6b25e]/10 px-5 py-3 font-semibold text-[#ead28f] shadow-[0_12px_40px_rgba(214,178,94,0.08)] transition hover:-translate-y-0.5 hover:border-[#d6b25e]/60 hover:bg-[#d6b25e]/15"
+  >
+    Prompt anzeigen
+    <span aria-hidden="true">→</span>
+  </Link>
+) : null}
+                
 <div className="mt-6 border-t border-white/10 pt-5">
   <p className="text-xs leading-5 text-white/40">
     Ihre Anfrage wurde sicher gespeichert. Die automatische
