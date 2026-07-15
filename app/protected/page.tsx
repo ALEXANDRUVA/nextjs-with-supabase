@@ -2,44 +2,39 @@
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
 
 import { createClient } from "@/lib/supabase/server";
 import { AnalyzeProjectButton } from "./analyze-project-button";
 
-type OrderRow = {
+type ProjectRow = {
   id: string;
+  user_id: string;
   status: string;
   property_type: string | null;
   room_type: string | null;
   style: string | null;
   duration_seconds: number | null;
-  camera_motion: string | null;
-  usage_type: string | null;
-  notes: string | null;
   original_image_path: string | null;
-  approved_video_path: string | null;
-  generation_attempts: number;
   created_at: string;
 };
 
-type ProjectWithImage = OrderRow & {
+type ProjectWithImage = ProjectRow & {
   imageUrl: string | null;
 };
 
 const statusLabels: Record<string, string> = {
   draft: "Entwurf",
-  image_uploaded: "Bild hochgeladen",
+  image_uploaded: "Anfrage eingegangen",
   payment_pending: "Zahlung ausstehend",
-  paid: "Bezahlt",
-  prompt_processing: "KI-Analyse läuft",
-  prompt_ready: "Prompt vorbereitet",
-  video_queued: "In Warteschlange",
+  paid: "Zahlung bestätigt",
+  prompt_processing: "Projekt wird vorbereitet",
+  prompt_ready: "Vorbereitung abgeschlossen",
+  video_queued: "Produktion eingeplant",
   video_processing: "Video wird erstellt",
   quality_review: "Qualitätsprüfung",
-  approved: "Freigegeben",
-  delivered: "Ausgeliefert",
-  failed: "Fehlgeschlagen",
+  approved: "Video freigegeben",
+  delivered: "Fertiggestellt",
+  failed: "Interne Prüfung erforderlich",
   refunded: "Erstattet",
 };
 
@@ -63,39 +58,38 @@ const styleLabels: Record<string, string> = {
   modern: "Modern",
   warm_minimalism: "Warm Minimalism",
   japandi: "Japandi",
-  scandinavian: "Scandinavian",
+  scandinavian: "Skandinavisch",
   modern_luxury: "Modern Luxury",
   architecture_preserved: "Originalarchitektur",
 };
 
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 function getStatusClasses(status: string) {
-  if (status === "failed" || status === "refunded") {
-    return "border-red-400/20 bg-red-400/10 text-red-200";
+  if (status === "failed") {
+    return "border-red-400/25 bg-red-400/10 text-red-200";
   }
 
   if (status === "approved" || status === "delivered") {
-    return "border-emerald-400/20 bg-emerald-400/10 text-emerald-200";
+    return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200";
   }
 
   if (
     status === "video_processing" ||
-    status === "prompt_processing" ||
     status === "quality_review"
   ) {
-    return "border-blue-400/20 bg-blue-400/10 text-blue-200";
+    return "border-blue-400/25 bg-blue-400/10 text-blue-200";
   }
 
-  return "border-[#d6b25e]/25 bg-[#d6b25e]/10 text-[#ead28f]";
+  return "border-[#d6b25e]/30 bg-[#d6b25e]/15 text-[#ead28f]";
 }
 
-function formatDate(date: string) {
-  return new Intl.DateTimeFormat("de-DE", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(date));
-}
-
-async function DashboardContent() {
+export default async function ProtectedPage() {
   const supabase = await createClient();
 
   const { data: authData, error: authError } =
@@ -105,65 +99,84 @@ async function DashboardContent() {
     redirect("/auth/login");
   }
 
-  const { data: ordersData, error: ordersError } = await supabase
-    .from("orders")
-    .select(
-      `
-        id,
-        status,
-        property_type,
-        room_type,
-        style,
-        duration_seconds,
-        camera_motion,
-        usage_type,
-        notes,
-        original_image_path,
-        approved_video_path,
-        generation_attempts,
-        created_at
-      `,
-    )
-    .order("created_at", { ascending: false });
+  const userId = String(authData.claims.sub);
 
-  if (ordersError) {
-    return (
-      <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-6 text-red-200">
-        Die Projekte konnten nicht geladen werden.
-        <p className="mt-2 text-sm text-red-200/70">
-          {ordersError.message}
-        </p>
-      </div>
-    );
+  const { data: projectData, error: projectError } =
+    await supabase
+      .from("orders")
+      .select(
+        `
+          id,
+          user_id,
+          status,
+          property_type,
+          room_type,
+          style,
+          duration_seconds,
+          original_image_path,
+          created_at
+        `,
+      )
+      .eq("user_id", userId)
+      .order("created_at", {
+        ascending: false,
+      });
+
+  if (projectError) {
+    console.error("Could not load projects:", projectError);
   }
 
-  const orders = (ordersData ?? []) as OrderRow[];
-
   const projects: ProjectWithImage[] = await Promise.all(
-    orders.map(async (order) => {
-      if (!order.original_image_path) {
+    ((projectData ?? []) as ProjectRow[]).map(
+      async (project) => {
+        let imageUrl: string | null = null;
+
+        if (project.original_image_path) {
+          const { data, error } = await supabase.storage
+            .from("original-images")
+            .createSignedUrl(
+              project.original_image_path,
+              3600,
+            );
+
+          if (error) {
+            console.error(
+              "Could not create project image URL:",
+              error,
+            );
+          }
+
+          imageUrl = data?.signedUrl ?? null;
+        }
+
         return {
-          ...order,
-          imageUrl: null,
+          ...project,
+          imageUrl,
         };
-      }
-
-      const { data } = await supabase.storage
-        .from("original-images")
-        .createSignedUrl(order.original_image_path, 3600);
-
-      return {
-        ...order,
-        imageUrl: data?.signedUrl ?? null,
-      };
-    }),
+      },
+    ),
   );
 
+  const completedStatuses = new Set([
+    "approved",
+    "delivered",
+  ]);
+
+  const completedCount = projects.filter((project) =>
+    completedStatuses.has(project.status),
+  ).length;
+
+  const inProgressCount = projects.filter(
+    (project) =>
+      !completedStatuses.has(project.status) &&
+      project.status !== "refunded",
+  ).length;
+
   return (
-    <section className="w-full py-4">
-      <header className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
+    <section className="w-full py-2">
+      <header className="flex flex-col justify-between gap-7 md:flex-row md:items-end">
         <div>
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#d6b25e]/20 bg-[#d6b25e]/10 px-4 py-2">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#d6b25e]/20 bg-[#d6b25e]/10 px-4 py-2">
             <span className="h-1.5 w-1.5 rounded-full bg-[#e2c474] shadow-[0_0_12px_rgba(226,196,116,0.8)]" />
 
             <span className="text-xs font-semibold uppercase tracking-[0.22em] text-[#e2c474]">
@@ -171,25 +184,25 @@ async function DashboardContent() {
             </span>
           </div>
 
-          <h1 className="text-3xl font-bold tracking-tight text-white md:text-5xl">
+          <h1 className="mt-5 text-4xl font-bold tracking-tight text-white md:text-5xl">
             Meine Projekte
           </h1>
 
-          <p className="mt-4 max-w-2xl leading-7 text-white/50">
-            Verwalten Sie Ihre Immobilienvisualisierungen und verfolgen Sie
-            den aktuellen Bearbeitungsstatus.
+          <p className="mt-4 max-w-2xl leading-7 text-white/45">
+            Verwalten Sie Ihre Immobilienvisualisierungen und
+            verfolgen Sie den aktuellen Bearbeitungsstatus.
           </p>
         </div>
 
         <Link
           href="/protected/new-order"
-          className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#d6b25e]/35 bg-gradient-to-r from-[#d6b25e] to-[#a9873e] px-6 py-3 font-semibold text-black shadow-[0_15px_45px_rgba(214,178,94,0.18)] transition hover:scale-[1.02] hover:brightness-110"
+          className="inline-flex min-h-12 w-fit items-center justify-center rounded-xl bg-[#d6b25e] px-6 py-3 font-semibold text-black shadow-[0_14px_45px_rgba(214,178,94,0.15)] transition hover:-translate-y-0.5 hover:bg-[#e2c474]"
         >
           + Neue Anfrage
         </Link>
       </header>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+      <div className="mt-9 grid gap-4 md:grid-cols-3">
         <StatCard
           label="Projekte insgesamt"
           value={projects.length}
@@ -197,187 +210,145 @@ async function DashboardContent() {
 
         <StatCard
           label="In Bearbeitung"
-          value={
-            projects.filter((project) =>
-              [
-                "image_uploaded",
-                "prompt_processing",
-                "prompt_ready",
-                "video_queued",
-                "video_processing",
-                "quality_review",
-              ].includes(project.status),
-            ).length
-          }
+          value={inProgressCount}
         />
 
         <StatCard
           label="Fertiggestellt"
-          value={
-            projects.filter((project) =>
-              ["approved", "delivered"].includes(project.status),
-            ).length
-          }
+          value={completedCount}
         />
       </div>
 
       {projects.length === 0 ? (
-        <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] p-10 text-center shadow-[0_30px_100px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:p-16">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#d6b25e]/60 to-transparent" />
-
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-[#d6b25e]/25 bg-[#d6b25e]/10 text-2xl text-[#e2c474]">
-            V
-          </div>
-
-          <h2 className="mt-6 text-2xl font-semibold text-white">
-            Noch keine Projekte vorhanden
+        <article className="mt-8 rounded-[28px] border border-white/10 bg-white/[0.04] p-8 text-center shadow-[0_25px_80px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+          <h2 className="text-2xl font-semibold text-white">
+            Noch keine Projekte
           </h2>
 
-          <p className="mx-auto mt-3 max-w-xl text-white/50">
-            Erstellen Sie Ihre erste KI-gestützte Immobilienvisualisierung.
+          <p className="mx-auto mt-3 max-w-xl leading-7 text-white/45">
+            Erstellen Sie Ihre erste Anfrage und laden Sie ein
+            Objektfoto für die Bearbeitung hoch.
           </p>
 
           <Link
             href="/protected/new-order"
-            className="mt-7 inline-flex rounded-xl bg-white px-6 py-3 font-semibold text-black transition hover:bg-[#ead28f]"
+            className="mt-6 inline-flex min-h-12 items-center justify-center rounded-xl bg-[#d6b25e] px-6 py-3 font-semibold text-black transition hover:bg-[#e2c474]"
           >
             Erste Anfrage erstellen
           </Link>
-        </div>
+        </article>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {projects.map((project) => (
-            <article
-              key={project.id}
-              className="group relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition hover:-translate-y-1 hover:border-[#d6b25e]/25"
-            >
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-[#d6b25e]/50 to-transparent" />
+        <div className="mt-8 grid items-start gap-7 lg:grid-cols-2">
+          {projects.map((project) => {
+            const propertyLabel =
+              propertyLabels[project.property_type ?? ""] ??
+              project.property_type ??
+              "Immobilienprojekt";
 
-              <div className="relative aspect-[16/9] overflow-hidden bg-black/40">
-                {project.imageUrl ? (
-                  <img
-                    src={project.imageUrl}
-                    alt="Immobilienfoto des Projekts"
-                    className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.03]"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-white/35">
-                    Kein Vorschaubild
+            const roomLabel =
+              roomLabels[project.room_type ?? ""] ??
+              project.room_type ??
+              "Objektbereich";
+
+            const styleLabel =
+              styleLabels[project.style ?? ""] ??
+              project.style ??
+              "—";
+
+            return (
+              <article
+                key={project.id}
+                className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] shadow-[0_25px_80px_rgba(0,0,0,0.42)] backdrop-blur-2xl"
+              >
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-[#d6b25e]/60 to-transparent" />
+
+                <div className="relative aspect-[16/9] overflow-hidden bg-black/40">
+                  {project.imageUrl ? (
+                    <img
+                      src={project.imageUrl}
+                      alt={`${propertyLabel} – ${roomLabel}`}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-sm text-white/35">
+                      Kein Objektfoto verfügbar
+                    </div>
+                  )}
+
+                  <div className="absolute bottom-4 left-4">
+                    <span
+                      className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold backdrop-blur-xl ${getStatusClasses(
+                        project.status,
+                      )}`}
+                    >
+                      {statusLabels[project.status] ??
+                        project.status}
+                    </span>
                   </div>
-                )}
+                </div>
 
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                <div className="p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-semibold text-white">
+                        {propertyLabel} · {roomLabel}
+                      </h2>
 
-                <span
-                  className={`absolute bottom-4 left-4 rounded-full border px-3 py-1.5 text-xs font-semibold ${getStatusClasses(
-                    project.status,
-                  )}`}
-                >
-                  {statusLabels[project.status] ?? project.status}
-                </span>
-              </div>
+                      <p className="mt-2 text-sm text-white/40">
+                        Erstellt am{" "}
+                        {formatDate(project.created_at)}
+                      </p>
+                    </div>
 
-              <div className="p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-semibold text-white">
-                      {propertyLabels[project.property_type ?? ""] ??
-                        "Immobilienprojekt"}
-                      {" · "}
-                      {roomLabels[project.room_type ?? ""] ??
-                        "Objektbereich"}
-                    </h2>
+                    <span className="rounded-lg border border-white/10 bg-black/25 px-2.5 py-1 font-mono text-[10px] text-white/35">
+                      {project.id.slice(0, 8)}
+                    </span>
+                  </div>
 
-                    <p className="mt-2 text-sm text-white/40">
-                      Erstellt am {formatDate(project.created_at)}
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                    <InfoCard
+                      label="Stil"
+                      value={styleLabel}
+                    />
+
+                    <InfoCard
+                      label="Videolänge"
+                      value={
+                        project.duration_seconds
+                          ? `${project.duration_seconds} Sekunden`
+                          : "—"
+                      }
+                    />
+                  </div>
+
+                  <div className="mt-5">
+                    <AnalyzeProjectButton
+                      orderId={project.id}
+                      status={project.status}
+                    />
+                  </div>
+
+                  <Link
+                    href={`/protected/projects/${project.id}`}
+                    className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#d6b25e]/35 bg-[#d6b25e]/10 px-5 py-3 font-semibold text-[#ead28f] transition hover:-translate-y-0.5 hover:border-[#d6b25e]/60 hover:bg-[#d6b25e]/15"
+                  >
+                    Projekt ansehen
+                    <span aria-hidden="true">→</span>
+                  </Link>
+
+                  <div className="mt-6 border-t border-white/10 pt-5">
+                    <p className="text-xs leading-5 text-white/30">
+                      Ihre Anfrage wurde sicher gespeichert. Wir
+                      informieren Sie über den weiteren
+                      Projektfortschritt.
                     </p>
                   </div>
-
-                  <span className="rounded-lg border border-white/10 bg-black/25 px-2.5 py-1.5 font-mono text-[10px] text-white/35">
-                    {project.id.slice(0, 8)}
-                  </span>
                 </div>
-
-                <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
-                  <ProjectDetail
-                    label="Stil"
-                    value={
-                      styleLabels[project.style ?? ""] ??
-                      project.style ??
-                      "—"
-                    }
-                  />
-
-                  <ProjectDetail
-                    label="Videolänge"
-                    value={
-                      project.duration_seconds
-                        ? `${project.duration_seconds} Sekunden`
-                        : "—"
-                    }
-                  />
-
-                  <ProjectDetail
-                    label="Versuche"
-                    value={String(project.generation_attempts)}
-                  />
-
-                  <ProjectDetail
-                    label="Video"
-                    value={
-                      project.approved_video_path
-                        ? "Verfügbar"
-                        : "Noch nicht erstellt"
-                    }
-                  />
-                </div>
-
-                <AnalyzeProjectButton
-  orderId={project.id}
-  status={project.status}
-/>
-                
-{[
-  "prompt_ready",
-  "video_queued",
-  "video_processing",
-  "quality_review",
-  "approved",
-  "delivered",
-].includes(project.status) ? (
-  <Link
-    href={`/protected/projects/${project.id}`}
-    className="mt-4 flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl border border-[#d6b25e]/35 bg-[#d6b25e]/10 px-5 py-3 font-semibold text-[#ead28f] shadow-[0_12px_40px_rgba(214,178,94,0.08)] transition hover:-translate-y-0.5 hover:border-[#d6b25e]/60 hover:bg-[#d6b25e]/15"
-  >
-    Prompt anzeigen
-    <span aria-hidden="true">→</span>
-  </Link>
-) : null}
-                
-<div className="mt-6 border-t border-white/10 pt-5">
-  <p className="text-xs leading-5 text-white/40">
-    Ihre Anfrage wurde sicher gespeichert. Die automatische
-    Videoerstellung wird in einer späteren Phase aktiviert.
-  </p>
-</div>
-</div>
-</article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
-    </section>
-  );
-}
-
-function DashboardLoading() {
-  return (
-    <section className="w-full py-6">
-      <div className="mb-8 h-12 w-64 animate-pulse rounded-xl bg-white/10" />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="h-96 animate-pulse rounded-[28px] border border-white/10 bg-white/[0.04]" />
-        <div className="h-96 animate-pulse rounded-[28px] border border-white/10 bg-white/[0.04]" />
-      </div>
     </section>
   );
 }
@@ -390,16 +361,17 @@ function StatCard({
   value: number;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 backdrop-blur-xl">
-      <p className="text-sm text-white/40">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-[#ead28f]">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
+      <p className="text-sm text-white/35">{label}</p>
+
+      <p className="mt-3 text-3xl font-bold text-[#ead28f]">
         {value}
       </p>
     </div>
   );
 }
 
-function ProjectDetail({
+function InfoCard({
   label,
   value,
 }: {
@@ -407,17 +379,12 @@ function ProjectDetail({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-      <p className="text-xs text-white/35">{label}</p>
-      <p className="mt-1 font-medium text-white/80">{value}</p>
-    </div>
-  );
-}
+    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+      <p className="text-xs text-white/30">{label}</p>
 
-export default function ProtectedPage() {
-  return (
-    <Suspense fallback={<DashboardLoading />}>
-      <DashboardContent />
-    </Suspense>
+      <p className="mt-1.5 font-medium text-white/80">
+        {value}
+      </p>
+    </div>
   );
 }
