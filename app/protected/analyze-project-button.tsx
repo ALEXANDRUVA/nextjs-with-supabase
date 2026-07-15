@@ -1,10 +1,9 @@
 "use client";
 
 import {
-  AlertTriangle,
   CheckCircle2,
   LoaderCircle,
-  RotateCcw,
+  RefreshCw,
   Sparkles,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -15,10 +14,14 @@ type AnalyzeProjectButtonProps = {
   status: string;
 };
 
-type AnalyzeApiResponse = {
-  success?: boolean;
-  error?: string;
-};
+const completedPreparationStatuses = [
+  "prompt_ready",
+  "video_queued",
+  "video_processing",
+  "quality_review",
+  "approved",
+  "delivered",
+];
 
 export function AnalyzeProjectButton({
   orderId,
@@ -27,195 +30,182 @@ export function AnalyzeProjectButton({
   const router = useRouter();
 
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [wasStarted, setWasStarted] = useState(false);
 
-  const isProcessing = status === "prompt_processing";
-  const isReady = status === "prompt_ready";
-
-  const canAnalyze =
-    status === "image_uploaded" || status === "failed";
-
-  async function handleAnalyze() {
-    if (isLoading || !canAnalyze) {
+  async function handlePreparation() {
+    if (isLoading) {
       return;
     }
 
     setIsLoading(true);
-    setErrorMessage("");
-    setSuccessMessage("");
+    setLocalError(null);
+    setWasStarted(false);
 
     try {
       const response = await fetch(
-        `/api/orders/${encodeURIComponent(orderId)}/analyze`,
+        `/api/orders/${orderId}/analyze`,
         {
           method: "POST",
           headers: {
-            Accept: "application/json",
+            "Content-Type": "application/json",
           },
-          credentials: "same-origin",
-          cache: "no-store",
         },
       );
 
-      const result = (await response
-        .json()
-        .catch(() => ({}))) as AnalyzeApiResponse;
+      const result = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(
-          result.error ??
-            "Die KI-Analyse konnte nicht gestartet werden.",
-        );
+        const message =
+          typeof result?.error === "string"
+            ? result.error
+            : typeof result?.message === "string"
+              ? result.message
+              : "Die Vorbereitung konnte nicht abgeschlossen werden.";
+
+        throw new Error(message);
       }
 
-      setSuccessMessage(
-        "Die Analyse wurde erfolgreich abgeschlossen.",
-      );
-
-      /*
-       * Re-fetch the Server Component dashboard.
-       * The refreshed project should now have:
-       * status = prompt_ready
-       */
+      setWasStarted(true);
       router.refresh();
     } catch (error) {
-      console.error("VimmoAI analysis button error:", error);
+      console.error("Project preparation failed:", error);
 
-      setErrorMessage(
+      setLocalError(
         error instanceof Error
           ? error.message
-          : "Ein unerwarteter Fehler ist aufgetreten.",
+          : "Die Vorbereitung konnte nicht abgeschlossen werden.",
       );
     } finally {
       setIsLoading(false);
     }
   }
 
-  if (isReady) {
+  if (completedPreparationStatuses.includes(status)) {
+    if (status !== "prompt_ready") {
+      return null;
+    }
+
     return (
-      <div className="mt-6 flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-300/10">
-          <CheckCircle2
-            className="h-5 w-5 text-emerald-300"
-            aria-hidden="true"
-          />
-        </div>
+      <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-5">
+        <div className="flex items-start gap-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-400/25 bg-emerald-400/10">
+            <CheckCircle2
+              className="h-5 w-5 text-emerald-300"
+              aria-hidden="true"
+            />
+          </div>
 
-        <div>
-          <p className="text-sm font-semibold text-emerald-200">
-            Prompt vorbereitet
-          </p>
+          <div>
+            <p className="font-semibold text-emerald-200">
+              Vorbereitung abgeschlossen
+            </p>
 
-          <p className="mt-1 text-xs leading-5 text-emerald-100/60">
-            Die Bildanalyse und der Kling-Prompt wurden
-            erfolgreich gespeichert.
-          </p>
+            <p className="mt-1 text-sm leading-6 text-emerald-100/60">
+              Die interne Vorbereitung wurde erfolgreich
+              abgeschlossen.
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (isProcessing) {
+  if (status === "prompt_processing") {
     return (
-      <button
-        type="button"
-        disabled
-        className="mt-6 flex min-h-14 w-full cursor-wait items-center justify-center gap-3 rounded-2xl border border-blue-400/20 bg-blue-400/10 px-5 py-3 font-semibold text-blue-200"
-      >
-        <LoaderCircle
-          className="h-5 w-5 animate-spin"
-          aria-hidden="true"
-        />
+      <div className="rounded-2xl border border-blue-400/20 bg-blue-400/10 p-5">
+        <div className="flex items-start gap-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-400/25 bg-blue-400/10">
+            <LoaderCircle
+              className="h-5 w-5 animate-spin text-blue-200"
+              aria-hidden="true"
+            />
+          </div>
 
-        KI-Analyse läuft...
-      </button>
+          <div>
+            <p className="font-semibold text-blue-100">
+              Projekt wird vorbereitet
+            </p>
+
+            <p className="mt-1 text-sm leading-6 text-blue-100/55">
+              Die interne Vorbereitung läuft. Bitte warten Sie einen
+              Moment.
+            </p>
+          </div>
+        </div>
+      </div>
     );
   }
 
-  if (!canAnalyze) {
+  const canStartPreparation = [
+    "image_uploaded",
+    "paid",
+    "failed",
+  ].includes(status);
+
+  if (!canStartPreparation) {
     return null;
   }
 
+  const isRetry = status === "failed";
+
   return (
-    <div className="mt-6">
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+      <p className="font-semibold text-white/85">
+        {isRetry
+          ? "Interne Prüfung erforderlich"
+          : "Projektvorbereitung"}
+      </p>
+
+      <p className="mt-2 text-sm leading-6 text-white/45">
+        Das Objektfoto wird intern geprüft und für die professionelle
+        Videoproduktion vorbereitet.
+      </p>
+
+      {wasStarted ? (
+        <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">
+          Die Vorbereitung wurde gestartet.
+        </div>
+      ) : null}
+
+      {localError ? (
+        <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3">
+          <p className="text-sm leading-6 text-red-200">
+            Die Vorbereitung konnte nicht abgeschlossen werden.
+          </p>
+
+          <p className="mt-1 text-xs leading-5 text-red-200/55">
+            Das Projekt kann später erneut gestartet werden.
+          </p>
+        </div>
+      ) : null}
+
       <button
         type="button"
-        onClick={handleAnalyze}
+        onClick={handlePreparation}
         disabled={isLoading}
-        className="group relative flex min-h-14 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-[#e2c474]/35 bg-gradient-to-r from-[#d6b25e] via-[#e2c474] to-[#a9873e] px-5 py-3 font-semibold text-black shadow-[0_16px_50px_rgba(214,178,94,0.18)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#d6b25e] px-5 py-3 font-semibold text-black transition hover:bg-[#e2c474] disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <span className="pointer-events-none absolute inset-0 translate-x-[-120%] bg-gradient-to-r from-transparent via-white/35 to-transparent transition-transform duration-700 group-hover:translate-x-[120%]" />
-
         {isLoading ? (
           <>
             <LoaderCircle
-              className="relative h-5 w-5 animate-spin"
+              className="h-5 w-5 animate-spin"
               aria-hidden="true"
             />
-
-            <span className="relative">
-              Bild wird analysiert...
-            </span>
+            Projekt wird vorbereitet...
           </>
-        ) : status === "failed" ? (
+        ) : isRetry ? (
           <>
-            <RotateCcw
-              className="relative h-5 w-5"
-              aria-hidden="true"
-            />
-
-            <span className="relative">
-              KI-Analyse erneut starten
-            </span>
+            <RefreshCw className="h-5 w-5" aria-hidden="true" />
+            Vorbereitung erneut starten
           </>
         ) : (
           <>
-            <Sparkles
-              className="relative h-5 w-5"
-              aria-hidden="true"
-            />
-
-            <span className="relative">
-              Mit KI analysieren
-            </span>
+            <Sparkles className="h-5 w-5" aria-hidden="true" />
+            Projekt vorbereiten
           </>
         )}
       </button>
-
-      <p className="mt-3 text-center text-xs leading-5 text-white/35">
-        OpenAI analysiert das Objektfoto und erstellt einen
-        professionellen Kling-AI-Prompt. Das Video wird dabei
-        noch nicht generiert.
-      </p>
-
-      {successMessage ? (
-        <div
-          role="status"
-          className="mt-4 flex items-start gap-3 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200"
-        >
-          <CheckCircle2
-            className="mt-0.5 h-4 w-4 shrink-0"
-            aria-hidden="true"
-          />
-
-          {successMessage}
-        </div>
-      ) : null}
-
-      {errorMessage ? (
-        <div
-          role="alert"
-          className="mt-4 flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-200"
-        >
-          <AlertTriangle
-            className="mt-0.5 h-4 w-4 shrink-0"
-            aria-hidden="true"
-          />
-
-          <span>{errorMessage}</span>
-        </div>
-      ) : null}
     </div>
   );
 }
