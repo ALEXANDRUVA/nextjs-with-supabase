@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import { createClient } from "@/lib/supabase/server";
 import { AnalyzeProjectButton } from "./analyze-project-button";
@@ -75,6 +76,10 @@ function getStatusClasses(status: string) {
     return "border-red-400/25 bg-red-400/10 text-red-200";
   }
 
+  if (status === "refunded") {
+    return "border-white/15 bg-white/[0.06] text-white/60";
+  }
+
   if (status === "approved" || status === "delivered") {
     return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200";
   }
@@ -89,7 +94,7 @@ function getStatusClasses(status: string) {
   return "border-[#d6b25e]/30 bg-[#d6b25e]/15 text-[#ead28f]";
 }
 
-export default async function ProtectedPage() {
+async function ProtectedDashboardContent() {
   const supabase = await createClient();
 
   const { data: authData, error: authError } =
@@ -353,6 +358,30 @@ export default async function ProtectedPage() {
   );
 }
 
+function DashboardLoading() {
+  return (
+    <section className="w-full py-2">
+      <div className="h-9 w-48 animate-pulse rounded-full bg-white/10" />
+
+      <div className="mt-5 h-14 w-80 max-w-full animate-pulse rounded-xl bg-white/10" />
+
+      <div className="mt-4 h-7 w-[520px] max-w-full animate-pulse rounded-lg bg-white/[0.06]" />
+
+      <div className="mt-9 grid gap-4 md:grid-cols-3">
+        <div className="h-28 animate-pulse rounded-2xl border border-white/10 bg-white/[0.04]" />
+
+        <div className="h-28 animate-pulse rounded-2xl border border-white/10 bg-white/[0.04]" />
+
+        <div className="h-28 animate-pulse rounded-2xl border border-white/10 bg-white/[0.04]" />
+      </div>
+
+      <div className="mt-8 grid items-start gap-7 lg:grid-cols-2">
+        <div className="h-[650px] animate-pulse rounded-[28px] border border-white/10 bg-white/[0.04]" />
+      </div>
+    </section>
+  );
+}
+
 function StatCard({
   label,
   value,
@@ -382,9 +411,17 @@ function InfoCard({
     <div className="rounded-xl border border-white/10 bg-black/20 p-4">
       <p className="text-xs text-white/30">{label}</p>
 
-      <p className="mt-1.5 font-medium text-white/80">
+      <p className="mt-1.5 break-words font-medium text-white/80">
         {value}
       </p>
     </div>
+  );
+}
+
+export default function ProtectedPage() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <ProtectedDashboardContent />
+    </Suspense>
   );
 }
