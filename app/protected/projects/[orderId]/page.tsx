@@ -70,6 +70,7 @@ const styleLabels: Record<string, string> = {
 };
 
 const cameraMotionLabels: Record<string, string> = {
+  automatic: "Automatisch ausgewählt",
   slow_forward: "Ruhige Vorwärtsbewegung",
   dolly_in: "Sanfte Annäherung",
   pan_left: "Langsame Bewegung nach links",
