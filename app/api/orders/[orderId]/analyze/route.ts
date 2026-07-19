@@ -5,6 +5,8 @@ import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const AnalysisResultSchema = z.object({
@@ -29,9 +31,16 @@ const AnalysisResultSchema = z.object({
   recommended_settings: z.object({
     duration_seconds: z.number().int().min(5).max(15),
     camera_motion: z.string(),
-    motion_strength: z.enum(["low", "medium-low", "medium"]),
+    motion_strength: z.enum([
+      "low",
+      "medium-low",
+      "medium",
+    ]),
     image_detail: z.enum(["high"]),
-    creativity: z.enum(["low", "medium-low"]),
+    creativity: z.enum([
+      "low",
+      "medium-low",
+    ]),
     aspect_ratio_recommendation: z.string(),
     generation_notes: z.string(),
   }),
@@ -49,7 +58,10 @@ type ClaimedOrder = {
   notes: string | null;
 };
 
-function getMimeType(path: string, blobType: string): string {
+function getMimeType(
+  path: string,
+  blobType: string,
+): string {
   if (
     blobType === "image/jpeg" ||
     blobType === "image/png" ||
@@ -60,7 +72,10 @@ function getMimeType(path: string, blobType: string): string {
 
   const lowerPath = path.toLowerCase();
 
-  if (lowerPath.endsWith(".jpg") || lowerPath.endsWith(".jpeg")) {
+  if (
+    lowerPath.endsWith(".jpg") ||
+    lowerPath.endsWith(".jpeg")
+  ) {
     return "image/jpeg";
   }
 
@@ -75,7 +90,9 @@ function getMimeType(path: string, blobType: string): string {
   throw new Error("Unsupported image format");
 }
 
-function getSafeErrorMessage(error: unknown): string {
+function getSafeErrorMessage(
+  error: unknown,
+): string {
   if (error instanceof Error) {
     return error.message.slice(0, 2000);
   }
@@ -83,10 +100,15 @@ function getSafeErrorMessage(error: unknown): string {
   return "Unknown OpenAI analysis error";
 }
 
-function validateSameOrigin(request: NextRequest): boolean {
+function validateSameOrigin(
+  request: NextRequest,
+): boolean {
   const origin = request.headers.get("origin");
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  const host = forwardedHost ?? request.headers.get("host");
+  const forwardedHost =
+    request.headers.get("x-forwarded-host");
+  const host =
+    forwardedHost ??
+    request.headers.get("host");
 
   if (!origin || !host) {
     return true;
@@ -150,6 +172,9 @@ export async function POST(
 ) {
   const { orderId } = await context.params;
 
+  /*
+   * Prevent requests originating from a different website.
+   */
   if (!validateSameOrigin(request)) {
     return NextResponse.json(
       {
@@ -161,26 +186,20 @@ export async function POST(
     );
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    console.error("OPENAI_API_KEY is missing");
-
-    return NextResponse.json(
-      {
-        error: "Die KI-Verbindung ist nicht konfiguriert.",
-      },
-      {
-        status: 500,
-      },
-    );
-  }
-
-  const model = process.env.OPENAI_MODEL ?? "gpt-5.6-terra";
+  /*
+   * Authenticate the currently signed-in Supabase user.
+   */
   const supabase = await createClient();
 
-  const { data: authData, error: authError } =
-    await supabase.auth.getClaims();
+  const {
+    data: authData,
+    error: authError,
+  } = await supabase.auth.getClaims();
 
-  if (authError || !authData?.claims?.sub) {
+  if (
+    authError ||
+    !authData?.claims?.sub
+  ) {
     return NextResponse.json(
       {
         error: "Bitte melden Sie sich erneut an.",
@@ -191,26 +210,107 @@ export async function POST(
     );
   }
 
+  /*
+   * Only the VimmoAI administrator may start an analysis.
+   */
+  const adminUserId =
+    process.env.VIMMOAI_ADMIN_USER_ID;
+
+  if (!adminUserId) {
+    console.error(
+      "VIMMOAI_ADMIN_USER_ID is missing",
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          "Die Administrator-Konfiguration fehlt.",
+      },
+      {
+        status: 500,
+      },
+    );
+  }
+
+  const authenticatedUserId = String(
+    authData.claims.sub,
+  );
+
+  if (
+    authenticatedUserId !== adminUserId
+  ) {
+    console.warn(
+      "Unauthorized VimmoAI analysis attempt:",
+      {
+        orderId,
+        authenticatedUserId,
+      },
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          "Diese Aktion ist nur für VimmoAI-Administratoren erlaubt.",
+      },
+      {
+        status: 403,
+      },
+    );
+  }
+
+  /*
+   * Verify the server-side OpenAI configuration.
+   */
+  if (!process.env.OPENAI_API_KEY) {
+    console.error(
+      "OPENAI_API_KEY is missing",
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          "Die KI-Verbindung ist nicht konfiguriert.",
+      },
+      {
+        status: 500,
+      },
+    );
+  }
+
+  const model =
+    process.env.OPENAI_MODEL ??
+    "gpt-5.6-terra";
+
   let orderWasClaimed = false;
 
   try {
     /*
-     * Atomically claims the order.
-     * Only the authenticated owner may receive a row.
+     * Atomically claim the order.
+     *
+     * This prevents the same project from being analyzed
+     * several times at the same moment.
      */
-    const { data: claimedOrderData, error: claimError } =
-      await supabase
-        .rpc("claim_order_analysis", {
-          p_order_id: orderId,
-        })
-        .single();
+    const {
+      data: claimedOrderData,
+      error: claimError,
+    } = await supabase
+      .rpc("claim_order_analysis", {
+        p_order_id: orderId,
+      })
+      .single();
 
-    if (claimError || !claimedOrderData) {
-      console.warn("VimmoAI claim rejected:", {
-        orderId,
-        userId: authData.claims.sub,
-        error: claimError?.message,
-      });
+    if (
+      claimError ||
+      !claimedOrderData
+    ) {
+      console.warn(
+        "VimmoAI claim rejected:",
+        {
+          orderId,
+          authenticatedUserId,
+          error: claimError?.message,
+        },
+      );
 
       return NextResponse.json(
         {
@@ -225,18 +325,26 @@ export async function POST(
 
     orderWasClaimed = true;
 
-    const order = claimedOrderData as ClaimedOrder;
+    const order =
+      claimedOrderData as ClaimedOrder;
 
     /*
-     * Downloads through the signed-in Supabase client.
-     * Existing Storage policies verify ownership.
+     * Download the original image from the private
+     * Supabase Storage bucket.
      */
-    const { data: imageBlob, error: downloadError } =
-      await supabase.storage
-        .from("original-images")
-        .download(order.original_image_path);
+    const {
+      data: imageBlob,
+      error: downloadError,
+    } = await supabase.storage
+      .from("original-images")
+      .download(
+        order.original_image_path,
+      );
 
-    if (downloadError || !imageBlob) {
+    if (
+      downloadError ||
+      !imageBlob
+    ) {
       throw new Error(
         downloadError?.message ??
           "The original image could not be downloaded",
@@ -252,7 +360,8 @@ export async function POST(
       await imageBlob.arrayBuffer(),
     );
 
-    const base64Image = imageBuffer.toString("base64");
+    const base64Image =
+      imageBuffer.toString("base64");
 
     const userContext = `
 Analyze this real-estate image for the following VimmoAI request.
@@ -279,50 +388,62 @@ Additional customer notes:
 ${order.notes ?? "none"}
 
 Prepare a conservative and realistic Kling AI image-to-video prompt.
+
 When a customer selection conflicts with the visible image or risks changing
 the architecture, prioritize architectural preservation and explain the risk
 inside the structured analysis.
 `;
 
+    /*
+     * Create the server-side OpenAI client.
+     */
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey:
+        process.env.OPENAI_API_KEY,
     });
 
-    const response = await openai.responses.parse({
-      model,
+    /*
+     * Analyze the uploaded property image
+     * and produce a structured result.
+     */
+    const response =
+      await openai.responses.parse({
+        model,
 
-      input: [
-        {
-          role: "system",
-          content: SYSTEM_PROMPT,
+        input: [
+          {
+            role: "system",
+            content: SYSTEM_PROMPT,
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: userContext,
+              },
+              {
+                type: "input_image",
+                image_url:
+                  `data:${mimeType};base64,${base64Image}`,
+                detail: "high",
+              },
+            ],
+          },
+        ],
+
+        text: {
+          format: zodTextFormat(
+            AnalysisResultSchema,
+            "vimmoai_property_analysis",
+          ),
         },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: userContext,
-            },
-            {
-              type: "input_image",
-              image_url: `data:${mimeType};base64,${base64Image}`,
-              detail: "high",
-            },
-          ],
-        },
-      ],
 
-      text: {
-        format: zodTextFormat(
-          AnalysisResultSchema,
-          "vimmoai_property_analysis",
-        ),
-      },
+        max_output_tokens: 3500,
+      });
 
-      max_output_tokens: 3500,
-    });
-
-    const parsed = response.output_parsed;
+    const parsed =
+      response.output_parsed;
 
     if (!parsed) {
       throw new Error(
@@ -332,16 +453,26 @@ inside the structured analysis.
 
     const analysisForDatabase = {
       ...parsed.analysis,
-      openai_request_id: response._request_id ?? null,
+      openai_request_id:
+        response._request_id ?? null,
     };
 
-    const { error: completeError } = await supabase.rpc(
+    /*
+     * Store the completed analysis and generated
+     * Kling preparation securely in Supabase.
+     */
+    const {
+      error: completeError,
+    } = await supabase.rpc(
       "complete_order_analysis",
       {
         p_order_id: order.id,
-        p_ai_analysis: analysisForDatabase,
-        p_kling_prompt: parsed.kling_prompt,
-        p_negative_prompt: parsed.negative_prompt,
+        p_ai_analysis:
+          analysisForDatabase,
+        p_kling_prompt:
+          parsed.kling_prompt,
+        p_negative_prompt:
+          parsed.negative_prompt,
         p_recommended_settings:
           parsed.recommended_settings,
         p_prompt_model: model,
@@ -349,7 +480,9 @@ inside the structured analysis.
     );
 
     if (completeError) {
-      throw new Error(completeError.message);
+      throw new Error(
+        completeError.message,
+      );
     }
 
     return NextResponse.json({
@@ -358,21 +491,34 @@ inside the structured analysis.
       status: "prompt_ready",
       analysis: {
         confidenceScore:
-          parsed.analysis.confidence_score,
+          parsed.analysis
+            .confidence_score,
         humanReviewRequired:
-          parsed.analysis.human_review_required,
+          parsed.analysis
+            .human_review_required,
       },
     });
   } catch (error) {
-    const errorMessage = getSafeErrorMessage(error);
+    const errorMessage =
+      getSafeErrorMessage(error);
 
-    console.error("VimmoAI OpenAI analysis failed:", {
-      orderId,
-      error,
-    });
+    console.error(
+      "VimmoAI OpenAI analysis failed:",
+      {
+        orderId,
+        authenticatedUserId,
+        error,
+      },
+    );
 
+    /*
+     * Mark the analysis as failed only when
+     * the project was previously claimed.
+     */
     if (orderWasClaimed) {
-      const { error: failError } = await supabase.rpc(
+      const {
+        error: failError,
+      } = await supabase.rpc(
         "fail_order_analysis",
         {
           p_order_id: orderId,
