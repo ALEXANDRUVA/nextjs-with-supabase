@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { createClient } from "@/lib/supabase/server";
-import { AnalyzeProjectButton } from "./analyze-project-button";
+
 
 type ProjectRow = {
   id: string;
@@ -325,14 +325,7 @@ async function ProtectedDashboardContent() {
                       }
                     />
                   </div>
-
-                  <div className="mt-5">
-                    <AnalyzeProjectButton
-                      orderId={project.id}
-                      status={project.status}
-                    />
-                  </div>
-
+                
                   <Link
                     href={`/protected/projects/${project.id}`}
                     className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#d6b25e]/35 bg-[#d6b25e]/10 px-5 py-3 font-semibold text-[#ead28f] transition hover:-translate-y-0.5 hover:border-[#d6b25e]/60 hover:bg-[#d6b25e]/15"
