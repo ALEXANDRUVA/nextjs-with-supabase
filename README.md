@@ -465,4 +465,4 @@ AI-assisted real estate visualization with human quality control
 
 Built with Next.js, Supabase, OpenAI GPT-5.6, Codex, and Vercel.
 
-</div> ```
+
