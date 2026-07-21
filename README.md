@@ -6,8 +6,8 @@
 
 Transforming property photos into structured, production-ready visual experiences for modern real estate marketing.
 
-[Live Demo](https://nextjs-with-supabase-vimmoai.vercel.app) ·
-[Demo Video](https://youtu.be/cMkal0Js-FE)) ·
+[Live Demo](https://nextjs-with-supabase-vimmoai.vercel.app)·
+[Demo Video](https://youtu.be/cMkal0Js-FE)·
 [Development Status](#development-status)
 
 </div>
