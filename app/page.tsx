@@ -1,58 +1,153 @@
-import { DeployButton } from "@/components/deploy-button";
-import { EnvVarWarning } from "@/components/env-var-warning";
-import { AuthButton } from "@/components/auth-button";
-import { Hero } from "@/components/hero";
-import { ThemeSwitcher } from "@/components/theme-switcher";
-import { ConnectSupabaseSteps } from "@/components/tutorial/connect-supabase-steps";
-import { SignUpUserSteps } from "@/components/tutorial/sign-up-user-steps";
-import { hasEnvVars } from "@/lib/utils";
 import Link from "next/link";
-import { Suspense } from "react";
+
+const technologies = [
+  "Next.js",
+  "TypeScript",
+  "Supabase",
+  "PostgreSQL",
+  "GPT-5.6",
+  "Codex",
+];
 
 export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col items-center">
-      <div className="flex-1 w-full flex flex-col gap-20 items-center">
-        <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16">
-          <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
-            <div className="flex gap-5 items-center font-semibold">
-              <Link href={"/"}>Next.js Supabase Starter</Link>
-              <div className="flex items-center gap-2">
-                <DeployButton />
-              </div>
+    <main className="min-h-screen overflow-hidden bg-[#080808] text-white">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute left-1/2 top-[-220px] h-[520px] w-[760px] -translate-x-1/2 rounded-full bg-[#d6b25e]/10 blur-[140px]" />
+        <div className="absolute bottom-[-280px] right-[-180px] h-[520px] w-[520px] rounded-full bg-blue-500/10 blur-[150px]" />
+      </div>
+
+      <header className="relative z-10 border-b border-white/10">
+        <nav className="mx-auto flex min-h-20 w-full max-w-7xl items-center justify-between px-6">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#d6b25e]/30 bg-[#d6b25e]/10 text-lg font-bold text-[#e5c878]">
+              V
             </div>
-            {!hasEnvVars ? (
-              <EnvVarWarning />
-            ) : (
-              <Suspense>
-                <AuthButton />
-              </Suspense>
-            )}
-          </div>
+
+            <div>
+              <p className="font-semibold tracking-wide">VimmoAI</p>
+              <p className="text-xs text-white/35">
+                AI Real Estate Visualization
+              </p>
+            </div>
+          </Link>
+
+          <Link
+            href="/auth/login"
+            className="rounded-xl border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold transition hover:border-white/25 hover:bg-white/[0.08]"
+          >
+            Sign in
+          </Link>
         </nav>
-        <div className="flex-1 flex flex-col gap-20 max-w-5xl p-5">
-          <Hero />
-          <main className="flex-1 flex flex-col gap-6 px-4">
-            <h2 className="font-medium text-xl mb-4">Next steps</h2>
-            {hasEnvVars ? <SignUpUserSteps /> : <ConnectSupabaseSteps />}
-          </main>
+      </header>
+
+      <section className="relative z-10 mx-auto flex min-h-[calc(100vh-81px)] w-full max-w-7xl flex-col items-center justify-center px-6 py-20 text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-[#d6b25e]/25 bg-[#d6b25e]/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#e5c878]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#e5c878] shadow-[0_0_12px_rgba(229,200,120,0.9)]" />
+          OpenAI Build Week MVP
         </div>
 
-        <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-8 py-16">
-          <p>
-            Powered by{" "}
-            <a
-              href="https://supabase.com/?utm_source=create-next-app&utm_medium=template&utm_term=nextjs"
-              target="_blank"
-              className="font-bold hover:underline"
-              rel="noreferrer"
+        <h1 className="mt-8 max-w-5xl text-5xl font-bold leading-[1.06] tracking-[-0.04em] sm:text-6xl lg:text-7xl">
+          Turn property images into structured cinematic presentation concepts
+        </h1>
+
+        <p className="mt-7 max-w-3xl text-base leading-8 text-white/50 sm:text-lg">
+          VimmoAI is an AI-powered real estate visualization platform that
+          helps transform property images and project information into clear,
+          production-ready cinematic plans.
+        </p>
+
+        <div className="mt-10 flex w-full max-w-md flex-col justify-center gap-4 sm:max-w-none sm:flex-row">
+          <Link
+            href="/protected"
+            className="inline-flex min-h-13 items-center justify-center rounded-xl bg-[#d6b25e] px-7 py-3.5 font-semibold text-black shadow-[0_18px_55px_rgba(214,178,94,0.18)] transition hover:-translate-y-0.5 hover:bg-[#e5c878]"
+          >
+            Open VimmoAI Dashboard
+          </Link>
+
+          <a
+            href="#workflow"
+            className="inline-flex min-h-13 items-center justify-center rounded-xl border border-white/15 bg-white/[0.04] px-7 py-3.5 font-semibold transition hover:border-white/25 hover:bg-white/[0.08]"
+          >
+            Explore the MVP
+          </a>
+        </div>
+
+        <div
+          id="workflow"
+          className="mt-20 grid w-full gap-5 text-left md:grid-cols-3"
+        >
+          <FeatureCard
+            number="01"
+            title="Create a project"
+            description="Add property details, choose the intended style and define the presentation direction."
+          />
+
+          <FeatureCard
+            number="02"
+            title="Upload property images"
+            description="Store property images securely and organize every visualization request in one dashboard."
+          />
+
+          <FeatureCard
+            number="03"
+            title="Generate an AI plan"
+            description="GPT-5.6 analyzes the request and creates a structured cinematic presentation concept."
+          />
+        </div>
+
+        <div className="mt-14 flex max-w-4xl flex-wrap justify-center gap-2">
+          {technologies.map((technology) => (
+            <span
+              key={technology}
+              className="rounded-full border border-white/10 bg-white/[0.035] px-4 py-2 text-sm text-white/45"
             >
-              Supabase
-            </a>
+              {technology}
+            </span>
+          ))}
+        </div>
+
+        <div className="mt-16 max-w-3xl rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-left backdrop-blur-xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d6b25e]">
+            Current status
           </p>
-          <ThemeSwitcher />
+
+          <p className="mt-3 leading-7 text-white/50">
+            VimmoAI is currently a functional MVP focused on authentication,
+            project creation, image upload, project management and AI-powered
+            cinematic planning. Automated video generation and client delivery
+            are planned for the next development phase.
+          </p>
+        </div>
+
+        <footer className="mt-16 border-t border-white/10 pt-8 text-sm text-white/30">
+          Built with GPT-5.6 and Codex for OpenAI Build Week · VimmoAI 2026
         </footer>
-      </div>
+      </section>
     </main>
+  );
+}
+
+function FeatureCard({
+  number,
+  title,
+  description,
+}: {
+  number: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <article className="relative overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.04] p-7 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#d6b25e]/60 to-transparent" />
+
+      <p className="text-xs font-bold tracking-[0.2em] text-[#d6b25e]">
+        {number}
+      </p>
+
+      <h2 className="mt-5 text-xl font-semibold">{title}</h2>
+
+      <p className="mt-3 leading-7 text-white/45">{description}</p>
+    </article>
   );
 }
