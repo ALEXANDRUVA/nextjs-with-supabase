@@ -258,6 +258,25 @@ export async function POST(
   }
 
   /*
+   * Paid analysis is disabled by default in every environment.
+   * It must be enabled explicitly after the staging checks pass.
+   */
+  if (
+    process.env.OPENAI_ANALYSIS_ENABLED !==
+    "true"
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Die KI-Analyse ist während der Entwicklung deaktiviert.",
+      },
+      {
+        status: 503,
+      },
+    );
+  }
+
+  /*
    * Verify the server-side OpenAI configuration.
    */
   if (!process.env.OPENAI_API_KEY) {
