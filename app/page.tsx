@@ -5,8 +5,8 @@ const technologies = [
   "TypeScript",
   "Supabase",
   "PostgreSQL",
-  "GPT-5.6",
-  "Codex",
+  "OpenAI API",
+  "Kling API – deaktiviert",
 ];
 
 export default function Home() {
@@ -27,7 +27,7 @@ export default function Home() {
             <div>
               <p className="font-semibold tracking-wide">VimmoAI</p>
               <p className="text-xs text-white/35">
-                AI Real Estate Visualization
+                KI-Immobilienvisualisierung
               </p>
             </div>
           </Link>
@@ -36,7 +36,7 @@ export default function Home() {
             href="/auth/login"
             className="rounded-xl border border-white/15 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold transition hover:border-white/25 hover:bg-white/[0.08]"
           >
-            Sign in
+            Anmelden
           </Link>
         </nav>
       </header>
@@ -44,17 +44,17 @@ export default function Home() {
       <section className="relative z-10 mx-auto flex min-h-[calc(100vh-81px)] w-full max-w-7xl flex-col items-center justify-center px-6 py-20 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-[#d6b25e]/25 bg-[#d6b25e]/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#e5c878]">
           <span className="h-1.5 w-1.5 rounded-full bg-[#e5c878] shadow-[0_0_12px_rgba(229,200,120,0.9)]" />
-          OpenAI Build Week MVP
+          Produkt in Entwicklung
         </div>
 
         <h1 className="mt-8 max-w-5xl text-5xl font-bold leading-[1.06] tracking-[-0.04em] sm:text-6xl lg:text-7xl">
-          Turn property images into structured cinematic presentation concepts
+          Vom Objektfoto zur cinematischen Immobilienpräsentation
         </h1>
 
         <p className="mt-7 max-w-3xl text-base leading-8 text-white/50 sm:text-lg">
-          VimmoAI is an AI-powered real estate visualization platform that
-          helps transform property images and project information into clear,
-          production-ready cinematic plans.
+          VimmoAI organisiert Immobilienfotos und Projektangaben sicher und
+          bereitet daraus klare, produktionsreife Konzepte für hochwertige
+          Immobilienvideos vor.
         </p>
 
         <div className="mt-10 flex w-full max-w-md flex-col justify-center gap-4 sm:max-w-none sm:flex-row">
@@ -62,14 +62,14 @@ export default function Home() {
             href="/protected"
             className="inline-flex min-h-13 items-center justify-center rounded-xl bg-[#d6b25e] px-7 py-3.5 font-semibold text-black shadow-[0_18px_55px_rgba(214,178,94,0.18)] transition hover:-translate-y-0.5 hover:bg-[#e5c878]"
           >
-            Open VimmoAI Dashboard
+            VimmoAI Dashboard öffnen
           </Link>
 
           <a
             href="#workflow"
             className="inline-flex min-h-13 items-center justify-center rounded-xl border border-white/15 bg-white/[0.04] px-7 py-3.5 font-semibold transition hover:border-white/25 hover:bg-white/[0.08]"
           >
-            Explore the MVP
+            Ablauf ansehen
           </a>
         </div>
 
@@ -79,20 +79,20 @@ export default function Home() {
         >
           <FeatureCard
             number="01"
-            title="Create a project"
-            description="Add property details, choose the intended style and define the presentation direction."
+            title="Projekt erstellen"
+            description="Objektdaten erfassen, Stil auswählen und die gewünschte Präsentationsrichtung festlegen."
           />
 
           <FeatureCard
             number="02"
-            title="Upload property images"
-            description="Store property images securely and organize every visualization request in one dashboard."
+            title="Objektfoto hochladen"
+            description="Bilder geschützt speichern und jede Visualisierungsanfrage zentral im Dashboard verwalten."
           />
 
           <FeatureCard
             number="03"
-            title="Generate an AI plan"
-            description="GPT-5.6 analyzes the request and creates a structured cinematic presentation concept."
+            title="Konzept prüfen"
+            description="Die Anfrage wird strukturiert vorbereitet. Kostenpflichtige Videogenerierung startet niemals automatisch."
           />
         </div>
 
@@ -109,19 +109,19 @@ export default function Home() {
 
         <div className="mt-16 max-w-3xl rounded-2xl border border-white/10 bg-white/[0.035] p-6 text-left backdrop-blur-xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#d6b25e]">
-            Current status
+            Aktueller Stand
           </p>
 
           <p className="mt-3 leading-7 text-white/50">
-            VimmoAI is currently a functional MVP focused on authentication,
-            project creation, image upload, project management and AI-powered
-            cinematic planning. Automated video generation and client delivery
-            are planned for the next development phase.
+            Authentifizierung, Projekterstellung, sicherer Bild-Upload und
+            Projektverwaltung sind vorhanden. Die automatische Kling-
+            Videogenerierung, Zahlung und Auslieferung sind noch deaktiviert
+            und werden erst nach vollständigen Sicherheitstests freigeschaltet.
           </p>
         </div>
 
         <footer className="mt-16 border-t border-white/10 pt-8 text-sm text-white/30">
-          Built with GPT-5.6 and Codex for OpenAI Build Week · VimmoAI 2026
+          VimmoAI 2026 · Sichere Immobilienvisualisierung in Entwicklung
         </footer>
       </section>
     </main>
