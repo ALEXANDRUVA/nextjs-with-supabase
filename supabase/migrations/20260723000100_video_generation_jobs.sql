@@ -398,18 +398,22 @@ begin
     raise exception 'Invalid provider completion data' using errcode = '22023';
   end if;
 
-  select generations.*, orders.user_id
-  into generation, order_owner_id
+  select generations.*
+  into generation
   from public.video_generations as generations
-  join public.orders as orders on orders.id = generations.order_id
   where generations.id = p_generation_id
     and generations.status = 'processing'
-  for update of generations;
+  for update;
 
   if not found then
     raise exception 'Processing video generation not found'
       using errcode = 'P0002';
   end if;
+
+  select orders.user_id
+  into order_owner_id
+  from public.orders as orders
+  where orders.id = generation.order_id;
 
   if p_result_video_path is null
     or split_part(p_result_video_path, '/', 1) <> order_owner_id::text
