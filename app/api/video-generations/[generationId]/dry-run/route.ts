@@ -242,9 +242,12 @@ export async function POST(
      * The signed URL is discarded immediately
      * and is never returned to the browser.
      */
+        const originalImagePath =
+      preparation.original_image_path;
+
     const imagePathPresent =
       isNonEmptyString(
-        preparation.original_image_path,
+        originalImagePath,
       );
 
     let imageAvailable = false;
@@ -258,7 +261,7 @@ export async function POST(
       } = await supabase.storage
         .from("original-images")
         .createSignedUrl(
-          preparation.original_image_path,
+          originalImagePath,
           60,
         );
 
