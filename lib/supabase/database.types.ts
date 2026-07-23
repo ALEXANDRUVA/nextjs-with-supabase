@@ -327,7 +327,7 @@ export type Database = {
         Returns: boolean
       }
 
-      get_active_video_provider: {
+               get_active_video_provider: {
         Args: never
         Returns: {
           configuration: Json
@@ -335,6 +335,33 @@ export type Database = {
           display_name: string
           priority: number
           provider_key: string
+        }[]
+      }
+
+      get_video_generation_dry_run: {
+        Args: {
+          p_generation_id: string
+        }
+        Returns: {
+          attempt_number: number
+          duration_seconds: number | null
+          estimated_cost_cents: number
+          generation_id: string
+          generation_status: string
+          kling_prompt: string | null
+          negative_prompt: string | null
+          order_id: string
+          order_status: string
+          original_image_path: string | null
+          provider_configuration: Json
+          provider_default_model: string | null
+          provider_display_name: string
+          provider_enabled: boolean
+          provider_key: string
+          provider_priority: number
+          provider_request_id: string
+          provider_supports_image_to_video: boolean
+          recommended_settings: Json | null
         }[]
       }
 
