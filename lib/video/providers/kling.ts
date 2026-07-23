@@ -51,6 +51,19 @@ function getKlingConfig() {
   };
 }
 
+function assertKlingGenerationEnabled(): void {
+  const enabled =
+    process.env.KLING_GENERATION_ENABLED
+      ?.trim()
+      .toLowerCase();
+
+  if (enabled !== "true") {
+    throw new Error(
+      "KLING_GENERATION_DISABLED",
+    );
+  }
+}
+
 function mapKlingStatus(
   status?: string,
 ):
@@ -102,7 +115,9 @@ async function parseResponse<T>(
   }
 
   if (!body) {
-    throw new Error("Kling returned an empty response");
+    throw new Error(
+      "Kling returned an empty response",
+    );
   }
 
   return body;
@@ -116,6 +131,12 @@ export class KlingVideoProvider
   async startGeneration(
     input: StartVideoGenerationInput,
   ): Promise<StartVideoGenerationResult> {
+    /*
+     * Final safety gate before any paid Kling
+     * generation request can leave the server.
+     */
+    assertKlingGenerationEnabled();
+
     const { apiKey, baseUrl } =
       getKlingConfig();
 
