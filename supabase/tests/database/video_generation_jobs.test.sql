@@ -267,6 +267,8 @@ select lives_ok(
   'replaying the same idempotency key succeeds'
 );
 
+reset role;
+
 select results_eq(
   $$
     select count(*)
@@ -276,6 +278,8 @@ select results_eq(
   array[1::bigint],
   'an idempotent replay creates no second job'
 );
+
+set local role authenticated;
 
 select lives_ok(
   $$
@@ -289,6 +293,8 @@ select lives_ok(
   'a second click reuses the active job'
 );
 
+reset role;
+
 select results_eq(
   $$
     select count(*)
@@ -299,19 +305,36 @@ select results_eq(
   'only one active job exists for an order'
 );
 
+do $test_state$
+declare
+  first_generation_id uuid;
+begin
+  select id
+  into first_generation_id
+  from public.video_generations
+  where order_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+  perform set_config(
+    'vimmoai.test_first_generation_id',
+    first_generation_id::text,
+    true
+  );
+end;
+$test_state$;
+
+set local role authenticated;
+
 select lives_ok(
   $$
     select *
     from public.claim_video_generation(
-      (
-        select id
-        from public.video_generations
-        where order_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-      )
+      current_setting('vimmoai.test_first_generation_id')::uuid
     )
   $$,
   'an administrator can claim a queued job'
 );
+
+reset role;
 
 select results_eq(
   $$
@@ -333,14 +356,12 @@ select results_eq(
   'claiming advances the order to video_processing'
 );
 
+set local role authenticated;
+
 select lives_ok(
   $$
     select public.fail_video_generation(
-      (
-        select id
-        from public.video_generations
-        where order_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-      ),
+      current_setting('vimmoai.test_first_generation_id')::uuid,
       'provider-task-one',
       'TEST_FAILURE',
       'Simulated provider failure.',
@@ -349,6 +370,8 @@ select lives_ok(
   $$,
   'an administrator can record a provider failure'
 );
+
+reset role;
 
 select results_eq(
   $$
@@ -360,6 +383,8 @@ select results_eq(
   $$values ('failed'::text, 'failed'::text)$$,
   'a provider failure advances both job and order to failed'
 );
+
+set local role authenticated;
 
 select lives_ok(
   $$
@@ -373,6 +398,8 @@ select lives_ok(
   'an administrator can queue the second and final attempt'
 );
 
+reset role;
+
 select results_eq(
   $$
     select attempt_number
@@ -384,16 +411,31 @@ select results_eq(
   'attempt numbers are sequential and capped at two'
 );
 
+do $test_state$
+declare
+  second_generation_id uuid;
+begin
+  select id
+  into second_generation_id
+  from public.video_generations
+  where order_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    and attempt_number = 2;
+
+  perform set_config(
+    'vimmoai.test_second_generation_id',
+    second_generation_id::text,
+    true
+  );
+end;
+$test_state$;
+
+set local role authenticated;
+
 select lives_ok(
   $$
     select *
     from public.claim_video_generation(
-      (
-        select id
-        from public.video_generations
-        where order_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-          and attempt_number = 2
-      )
+      current_setting('vimmoai.test_second_generation_id')::uuid
     )
   $$,
   'the second attempt can be claimed'
@@ -402,12 +444,7 @@ select lives_ok(
 select lives_ok(
   $$
     select public.fail_video_generation(
-      (
-        select id
-        from public.video_generations
-        where order_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-          and attempt_number = 2
-      ),
+      current_setting('vimmoai.test_second_generation_id')::uuid,
       'provider-task-two',
       'TEST_FAILURE',
       'Second simulated provider failure.',
