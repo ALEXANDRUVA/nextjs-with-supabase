@@ -327,7 +327,7 @@ export type Database = {
         Returns: boolean
       }
 
-               get_active_video_provider: {
+      get_active_video_provider: {
         Args: never
         Returns: {
           configuration: Json
@@ -368,6 +368,22 @@ export type Database = {
       is_vimmoai_admin: {
         Args: never
         Returns: boolean
+      }
+
+      record_video_generation_submission: {
+        Args: {
+          p_generation_id: string
+          p_provider_task_id: string
+        }
+        Returns: {
+          generation_id: string
+          generation_status: string
+          order_id: string
+          provider_key: string
+          recorded_provider_task_id: string
+          started_at: string
+          updated_at: string
+        }[]
       }
 
       queue_video_generation: {
@@ -412,7 +428,11 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (
         DefaultSchema["Tables"] &
-        DefaultSchema["Views"]
+        DefaultSchema["    Extract<keyof Database, "public">
+  ]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extendsViews"]
       )
     | {
         schema: keyof DatabaseWithoutInternals
