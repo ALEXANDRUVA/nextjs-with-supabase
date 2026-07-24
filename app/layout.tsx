@@ -3,14 +3,29 @@ import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
-const defaultUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
+const defaultUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.NODE_ENV === "development"
+    ? "http://localhost:3000"
+    : "https://app.vimmoai.com");
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Next.js and Supabase Starter Kit",
-  description: "The fastest way to build apps with Next.js and Supabase",
+  applicationName: "VimmoAI",
+  title: {
+    default: "VimmoAI – Immobilienvisualisierung",
+    template: "%s | VimmoAI",
+  },
+  description:
+    "Sichere Plattform für KI-gestützte Immobilienvisualisierung und die Vorbereitung cinematischer Immobilienvideos.",
+  openGraph: {
+    type: "website",
+    locale: "de_DE",
+    siteName: "VimmoAI",
+    title: "VimmoAI – Immobilienvisualisierung",
+    description:
+      "Vom Objektfoto zur strukturierten, cinematischen Immobilienpräsentation.",
+  },
 };
 
 const geistSans = Geist({
@@ -25,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="de" suppressHydrationWarning>
       <body className={`${geistSans.className} antialiased`}>
         <ThemeProvider
           attribute="class"

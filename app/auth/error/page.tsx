@@ -1,4 +1,6 @@
+import { AuthShell } from "@/components/auth-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 import { Suspense } from "react";
 
 async function ErrorContent({
@@ -6,20 +8,13 @@ async function ErrorContent({
 }: {
   searchParams: Promise<{ error: string }>;
 }) {
-  const params = await searchParams;
+  await searchParams;
 
   return (
-    <>
-      {params?.error ? (
-        <p className="text-sm text-muted-foreground">
-          Code error: {params.error}
-        </p>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          An unspecified error occurred.
-        </p>
-      )}
-    </>
+    <p className="text-sm leading-6 text-muted-foreground">
+      Der Link ist möglicherweise abgelaufen oder wurde bereits verwendet.
+      Fordern Sie bei Bedarf einen neuen Link an.
+    </p>
   );
 }
 
@@ -29,23 +24,26 @@ export default function Page({
   searchParams: Promise<{ error: string }>;
 }) {
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">
-                Sorry, something went wrong.
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Suspense>
-                <ErrorContent searchParams={searchParams} />
-              </Suspense>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
+    <AuthShell>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl">
+            Anmeldung nicht möglich
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Suspense>
+            <ErrorContent searchParams={searchParams} />
+          </Suspense>
+
+          <Link
+            href="/auth/login"
+            className="mt-5 inline-flex text-sm font-semibold underline underline-offset-4"
+          >
+            Zurück zur Anmeldung
+          </Link>
+        </CardContent>
+      </Card>
+    </AuthShell>
   );
 }

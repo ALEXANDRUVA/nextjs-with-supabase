@@ -134,6 +134,7 @@ export function OrderForm({ userId }: OrderFormProps) {
           camera_motion: cameraMotion,
           usage_type: usageType,
           notes,
+          image_rights_confirmed_at: new Date().toISOString(),
         })
         .select("id")
         .single();
