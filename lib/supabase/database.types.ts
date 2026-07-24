@@ -428,11 +428,7 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (
         DefaultSchema["Tables"] &
-        DefaultSchema["    Extract<keyof Database, "public">
-  ]
-
-export type Tables<
-  DefaultSchemaTableNameOrOptions extendsViews"]
+        DefaultSchema["Views"]
       )
     | {
         schema: keyof DatabaseWithoutInternals
